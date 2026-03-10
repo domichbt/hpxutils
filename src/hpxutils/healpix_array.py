@@ -6,7 +6,9 @@ except ImportError:
     from typing_extensions import Self
 
 import warnings
+from pathlib import Path
 
+import h5py
 import healpy as hp
 import matplotlib
 import matplotlib.pyplot as plt
@@ -143,6 +145,60 @@ class HealpixArray(np.ndarray):
                 dtype=dtype,
             )
             return HealpixArray(healpix_array=new_array, nest=nest_out, bad=self.bad)
+
+    def write(self, filename: str, ext: str | None = None):
+        """
+        Write the HealpixArray to a file in HDF5 format.
+
+        Parameters
+        ----------
+        filename : str
+            Path to the output file.
+        ext : str | None, optional
+            File extension. If None, inferred from filename. If filename has no extension, defaults to .h5. Supported extensions are .h5 and .hdf5, by default None.
+
+        Raises
+        ------
+        ValueError
+            If the file extension is not supported (.h5 or .hdf5).
+        """
+        filename = Path(filename)
+        ext = filename.suffix.lower() if ext is None else ext.lower()
+        if len(ext) == 0:
+            ext = ".h5"
+            filename = filename.with_suffix(ext)
+
+        if ext in [".h5", ".hdf5"]:
+            with h5py.File(filename, "w") as f:
+                f.create_dataset("map", data=self.view(np.ndarray))
+                f.attrs["nest"] = self.nest
+                f.attrs["bad"] = self.bad
+                f.attrs["nside"] = self.nside
+        else:
+            raise ValueError(
+                f"Unsupported file extension {ext} for HealpixArray writing. Supported extensions are .h5, .hdf5."
+            )
+
+    @classmethod
+    def read(cls, filename: str) -> Self:
+        """
+        Read a HealpixArray from an HDF5 file.
+
+        Parameters
+        ----------
+        filename : str
+            Path to the HDF5 file to read.
+
+        Returns
+        -------
+        HealpixArray
+            A new HealpixArray instance loaded from the file.
+        """
+        with h5py.File(filename, "r") as f:
+            map_data = f["map"][:]
+            nest = f.attrs.get("nest", None)
+            bad = f.attrs.get("bad", hp.UNSEEN)
+            return cls(healpix_array=map_data, nest=nest, bad=bad)
 
 
 class HealpixMask(HealpixArray):

@@ -135,8 +135,12 @@ class HealpixArray(np.ndarray):
         if nest_out == self.nest and nside_out == self.nside:
             return self.copy()
         else:
+            if np.isnan(self.bad):
+                mask_bad = np.isnan(self.view(np.ndarray))
+            else:
+                mask_bad = np.equal(self.view(np.ndarray), self.bad)
             new_array = hp.ud_grade(
-                map_in=self.view(np.ndarray),
+                map_in=np.where(mask_bad, hp.UNSEEN, self.view(np.ndarray)),
                 nside_out=nside_out,
                 pess=pess,
                 order_in="NEST" if self.nest else "RING",
@@ -144,7 +148,7 @@ class HealpixArray(np.ndarray):
                 power=power,
                 dtype=dtype,
             )
-            return HealpixArray(healpix_array=new_array, nest=nest_out, bad=self.bad)
+            return HealpixArray(healpix_array=np.where(new_array == hp.UNSEEN, self.bad, new_array), nest=nest_out, bad=self.bad)
 
     def write(self, filename: str, ext: str | None = None):
         """
